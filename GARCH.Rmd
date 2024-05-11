@@ -1,0 +1,250 @@
+---
+title: "GARCH"
+author: "Anjana Raj A"
+date: "2024-05-02"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Question 4
+
+Load GOOGL (GOOGL) (April, 2021 - April, 2024). We focus on the adjusted closing price.First take logs of the adjusted closing price.
+
+```{r}
+#Loading the Data set: The data has 756 observations starting from 27-04-2021 up to 26-04-2024
+ggl=read.csv("/Users/anjanaraja/Downloads/spr_24/stats_final/final/Data/GOOGL.csv")
+##Extracting the Adjusted Closing Price and Date
+Date=ggl$Date
+Date=as.Date(Date)
+#Extracting Adjusted Closing Prices
+adj.close=ggl$Adj.Close
+#Calculating the Logs
+log.adjClose=log(adj.close)
+```
+
+#### (a)Make a time series plot of the logarithm of the GOOGL closing price.
+
+```{r}
+library(xts)
+ggl.xts=as.xts(log.adjClose, order.by = Date)
+colnames(ggl.xts)=c("Log Adjusted Closing Price")
+##Plotting the log prices of Google
+plot.xts(ggl.xts,main="Times Series Plot of Adjusted Closing Prices", xlab="Time", ylab="log prices")
+```
+
+### (b)Use the test urca:ur.df to test for unit root (use AIC to select lags and use the option drift). State the null and alternative hypothesis and the conclusion of the test at the 1% level (state the test statistic and a comparision with the critical value)?
+
+Ans: ur.df is the function used to test for unit root using the Augmented Dicky Fuller Test (ADF). In case of a unit root, the 𝛷 will add up to 1. The sum of the 𝛷 is represented by "𝜫". The test assumes the error terms are iid and uncorrelated.
+
+The ADF test hypothesis is as follows:
+
+H0:𝜫=0 (has unit root)
+
+H1:𝜫\<0 (Stationary Series).
+
+The selection of the lag requires a estimation of an ar(p) model. If the lag is too large the test will loose power and if it is too small, the errors will be correlated.
+
+```{r}
+library(urca)
+ggl.df=ur.df(log.adjClose, type="drift",selectlags="AIC")
+summary(ggl.df)
+ggl.df@teststat
+ggl.df@cval
+```
+
+Comparing the tau2 values, The estimated tau2 value, is -1.137 which is greater than the critical value of -3.43 at the 1% level. The null hypothesis cannot be rejected. The log closing prices of google has a unit root. The estimated phi lies below the critical value at the 1% level.
+
+#### (c)Use the test urca:kpps.df to test for “stationarity” (use AIC to select lags and tau). State the null and alternative hypothesis and the conclusion of the test at the 1% level (give the test statistic and a comparision with the critical value)?
+
+According to [https://cran.r-project.org/web/packages/urca/urca.pdf](R%20documentation) for ur.kpss, the function does not offer any sort of lag selection method like AIC or BIC etc. It suggests using long or short for lags. These lags are used for the correction of an error term which may not be appropriate. It has a use.lag function. When use.lag is set to NULL, it automatically selects lags but it is unclear if it uses AIC.
+
+The hypothesis of the kpss test is: HO: The time series is stationary H1: The series has a unit root(we should take first differences)
+
+```{r}
+ggl.kpss=ur.kpss(log.adjClose,type="tau", use.lag = NULL)
+ggl.kpss@teststat[1]
+ggl.kpss@cval
+summary(ggl.kpss)
+```
+
+According to section 4.6.2, the analysis of stationarity accepted the null hypothesis if the test statistic was less than the critical value. The estimated test statistic in our analysis is 1.9734, The critical value corresponding to the 1% level is 0.216. Since the kpss test statistic is well above the 1% critical value, there is strong evidence to reject null hypothesis. The Adjusted closing prices of Google are found have a unit root and we should take first differences.
+
+#### (d)Do the conclusions of (b) and (c) match (give a short reason for your answer)?
+
+ADF TEST HYPOTHESIS: H0: Unit Root H1: Stationairty
+
+ADF TEST: -1.137\>-2.57 P value \> critical value: accept null. Has unit root, take first difference
+
+KPSS TEST HYPOTHESIS: H0: Stationarity H1: Unit Root.
+
+1.937\>0.216 P value \> critical value: reject null. Has unit root take first difference.
+
+#### (e)Based on the results above, take the first differences of the log returns. For the remainder of
+
+this question we only consider the log returns. Give the results of the ac.test for correlation and iid.test for iid (using 10 lags). Remember to state the null and alternative hypothesis and results of the test.
+
+```{r}
+#Calculating Log Returns
+goog.rt=diff(log.adjClose,1)
+#AC TEST
+library(testcorr)
+ac.test(goog.rt, max.lag=10)
+```
+
+The log returns of Google is tested for autocorrelation. H0: There is no correlation H1: There is correlation.
+
+The DGP statistic is captured by the red line in the chart, while the grey line represents the LB test.Since the DGP line lies below the dashed line(critical value at 5%) up to 10 lags, the null hypothesis cannot be rejected. There is no evidence of serial correlation in the log returns of google at the 5 % level.
+
+```{r}
+#Testing for IID
+iid.test(goog.rt, max.lag=10)
+```
+
+According to section 4.2.3,If the time series is uncorrelated with its absolutes (i.e. cov[Xt; jXt+hj] = 0 for all h 6= 0) and its squares (i.e. cov[Xt;X2t+h] = 0 for all h 6= 0), then it is unlikely the under-lying time series is dependent. The correlations between the absolutes and squares are tested using an L2 type statistic in the iid.test function.The estimated test statistic is compared to a chi-square with m-df (in this case 10). H0: The series is iid H1: The series is not iid.(There is dependence, the mean or variance changes over time) Looking at the iid plot, it is clear that there exists correlation in the absolutes for up to 10 lags at the 5% level ( red line lies well above the dashed line). There appears to be no correlation in the squares at the 5% level for up to 10 lags (grey line lies below the dashed line). The log returns are therefore not iid.
+
+#### (f)Recall that in Question 1 the iid Bootstrap was used to determine how much uncertainty was associated with the Sharpe’s Ratio estimates (it can also be used to construct confidence interval, though I did not ask for this). Based on your results in (e), why we need to be a little wary about using the iid Bootstrap (just a couple of lines is enough)?
+
+Bootstrap method assumes the orginal data to be the true population and draws samples to construct bootstrap estimators.Estimating multiple bootstrap estimators will help gain insights into the level of uncertainty.If certain conditions are violated, bootstrapping will not replicate the true population. Insufficient sample size is one such condition. Before applying bootstrap, the returns must be tested for iid. Bootstrapping cannot replicate dependence and it is therefore assumes the series to be iid.
+
+#### (g)Use the MLE to obtain the best fitting GARCH(1, 1) model. Give the equation of the model and plot the ACF of the squared residuals.
+
+```{r}
+library(rugarch)
+garch11=ugarchspec(mean.model = list(armaOrder=c(0,0)),
+                   variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                   distribution.model = "norm")
+g11.fit=ugarchfit(goog.rt, spec=garch11)
+#Estimated Coefficients for GARCH model
+g11.fit@fit$coef
+#Log Likelihood
+g11.fit@fit$LLH
+```
+
+X~t~=mu+Z~t~𝛔~t~ when Z~t~ is iid with E[Z~t~] =0 and Var[Z~t~]=1. 𝛔~t~=⍵+⍺X^2^~t-1. +~ 𝛃𝛔^2^~t-1~
+
+The estimated GARCH(1,1) model is as follows:
+
+𝛔~t= [0.00004131+]{.smallcaps} 0.019933~X^2^~t-1 +0.97099~ 𝛔^2^~t-1~
+
+```{r}
+#Extracting Residuals
+g11.res=g11.fit@fit$residuals
+acf(g11.res^2)
+```
+
+#### (h)Fit the GJR-GARCH(1, 1) model to the log returns. Give the equation of the model.
+
+```{r}
+garchgjr=ugarchspec(mean.model = list(armaOrder=c(0,0)),
+                   variance.model = list(model = "gjrGARCH", garchOrder = c(1, 1)),
+                   distribution.model = "norm")
+gjr.fit=ugarchfit(goog.rt, spec=garchgjr)
+#Estimated Coefficients for GARCH model
+gjr.fit@fit$coef
+#Log Likelihood
+gjr.fit@fit$LLH
+```
+
+𝛔~t=0.000002977 [+]{.smallcaps} (0.00000007356851+0.029821)~X^2^~t-1 +0.977886~ 𝛔^2^~t-1~
+
+#### (i)Use the log-likelihood ratio test to test H0 : GARCH(1, 1) model vs H1 : GJR-GARCH(1, 1)model. Do the test at the 5% level and state the p-value. Based on the test, which model seems more appropriate?
+
+```{r}
+#Extracting Log Likelihoods
+g11.llh=g11.fit@fit$LLH
+gjr.llh=gjr.fit@fit$LLH
+#Calculating Log Likelihood Ratio
+llh=2*(gjr.llh-g11.llh)
+llh
+#Calculating degree of freedom
+param11=length(g11.fit@fit$coef)
+param.gjr=length(gjr.fit@fit$coef)
+df=param.gjr-param11
+df
+#Estimated P Value
+pval=1-pchisq(llh, df = 1)
+pval
+#Critical Value at 5% level.
+qchisq(0.95,df=1)
+```
+
+If the estimated pvalue is less than 0.05% the null hypothesis is rejected. The estimated p value is 0.039911 which is smaller than 0.05, therefore we reject the null of GARCH(1,1) and accept the alternate that the GJR Garch is a better fit. Also the llrt is greater than the chi square at the 5% level.
+
+#### (j)Using bootstrap and the GJR-GARCH model, construct 99% prediction intervals for the log returns from 27th April, 2024 to 50 days in the future. Make a plot of the prediction intervals (including in the plot the past observed log returns).
+
+```{r}
+#Predicting 50 days into the future
+N=length(goog.rt)
+pred1 = ugarchforecast(gjr.fit, data = goog.rt, n.ahead = 50)
+#Bootstrap Prediction
+bootp = ugarchboot(gjr.fit, method = "Partial", n.ahead = 50,
+n.bootpred=10000)
+
+PredI = as.data.frame(bootp,which = "series",type = "q", qtile = c(0.005,0.995))
+lowerI = as.numeric(PredI[1,]) # Converts 0.005 quantile to numeric
+upperI = as.numeric(PredI[2,])
+
+
+maxb=max(c(goog.rt,upperI))
+minb=min(c(goog.rt,lowerI))
+
+plot(c(1:N), goog.rt, type = "l", col = "blue", xlab = "time", ylab = "log return",
+     ylim = c(minb, maxb), main = "Google Returns 50 Days from 27 April (GJR-GARCH)")
+
+lines(c(N:(N+49)), lowerI, type = "l", col = "red")
+
+lines(c(N:(N+49)), upperI, type = "l", col = "red")
+
+# Compare with the 99% CI using the normal distribution
+
+lines(c(N:(N+49)), sigma(pred1), type = "l", col = "darkorchid")
+
+lines(c(N:(N+49)), (fitted(pred1) - 2.57 * sigma(pred1)), col = "cornflowerblue", lty = 2)
+
+lines(c(N:(N+49)), (fitted(pred1) + 2.57 * sigma(pred1)), col = "cornflowerblue", lty = 2)
+
+legend("topleft", legend = c("99% Bootstrap quantiles", "99% using normal quantiles",
+                             "sigma[t,t+h]"), fill = c("red", "cornflowerblue", "darkorchid"), cex=0.5)
+```
+
+#### (k)Extract the residuals from the GJR-GARCH model and make a normal QQplot. What does the plot suggest about the distribution of the residuals?
+
+```{r}
+#Extracting Residuals
+gjr.res=gjr.fit@fit$residuals
+#Plotting Residuals
+qqnorm(gjr.res,main = "Normal QQplot (GJR-GARCH)")
+qqline(gjr.res)
+```
+
+The qq plots are used to understand the distribution of the residuals. The x axis represents the theoretical quantiles while the y axis represents the empirical quantiles. Even though a majority of the returns fall on the qqline, there appears to be a deviation from the line around the tails. This could imply that the residuals of the fitted GJR GARCH model follows a non-normal distribution, characterized by fat tails.
+
+#### (l)We now compare the estimated conditional standard deviation of the GARCH and GJRGARCH with the square root of the rolling mean of the squares of the log-return.Write a small routine to evaluate the square root of the rolling mean of the squares of the log-return (using a total window length of 81, 40 each side of t) for the log returns of the GOOGL data (I do not need to see this code). Make a plot which contains (i) conditional standard deviation σt based on the GARCH model, (ii) conditional standard deviation σt based on the GJR-GARCH model and (iii) the squareroot of the rolling mean of squares.
+
+```{r}
+#Estimated conditional Standard Deviation for GARCH and GJR
+g11.sigma=g11.fit@fit$sigma
+gjr.sigma=gjr.fit@fit$sigma
+library(dplyr)
+#Rolling Mean
+Date2=Date[-1]
+goog.rt2=cbind(Date2,goog.rt)
+goog.rt2=as.data.frame(goog.rt2)
+goog.rt2$Date2=as.Date(goog.rt2$Date2)
+#Rolling Standard Error
+goog.rt2= goog.rt**2
+rollstd =sqrt(rollmean(goog.rt2,81))
+
+plot(Date2, g11.sigma, type="l", col="blue", main="Plot of Standard Deviations", ylim=c(0.006,0.03))
+lines(Date2,gjr.sigma, col="black")
+lines(Date2[41:715],rollstd, col = "darkorchid", lwd = 2)
+legend("topleft",legend=c("GARCH11 std dev.","GJR GARCH sigma",  "Rolling std "),fill= c("blue","black","darkorchid"), cex=0.5)
+
+```
+#### (m)Are there similarities between the predictions? If so, explain why?
+
+The three plots of the standard deviation study the time varying volatility in the returns. The rolling standard deviation is calculated using a rolling window of 80 days. The purple line starts a little later when compared to the GARCH(1,1) and GJR GARCH estimates at about 40 days later. this is because of the rolling window. The GARCH(1,1) model is using the one period lagged return and conditional volatility of the previous period to determine the conditional volatility today.It however does not take into account the leverage effect. The GJR Garch model predicts the deviations by including this leverage effect.
+There are similarities in the overall trend  or trajectory of the deviations. But on closer inspection, the rolling window deviations appears to lag behind when compared GARCH models, this could be due to the fact that it does not take into account past volatilities. This is also GARCH models are a weighted average of the variances today and the past.

@@ -1,0 +1,109 @@
+---
+title: "CAPM_Model"
+author: "Anjana Raj A"
+date: "2024-05-01"
+output:
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Question 2:
+
+#### Load ABBV (Abbot) (April, 2021 - April, 2024). We focus on the adjusted closing price. Calculate the returns of the adjusted closing price.Load the Fama-French Daily factors F-F Research Data Factors daily.csv into R. The variables are defined as x = date, mkr.rf=daily market portfolio minus risk free asset, smb = small minus big factors, hml = high minus low factors and rf = risk free asset.In this question we focus on the returns from 28th April, 2021 - 29th February, 2024 (as the Fama-French factors only go up to the end of February). Therefore filter out the returns after this date.
+
+The Capital Asset Pricing Model(CAPM) tries to relate the returns on an asset to the market portfolio. There are certain conditions that must hold for the CAPM model to work. They are: 1. All investors have the perfect information about returns. 2. All investors have the same risk averse strategy. If there are two assets with the same amount of risk,they will choose the asset which will yield the highest returns. 3. For every asset, the demand=supply.
+
+```{r}
+#Loading the data
+abbv=read.csv("/Users/anjanaraja/Downloads/spr_24/stats_final/final/Data/ABBV.csv")
+ff=read.csv("/Users/anjanaraja/Downloads/spr_24/stats_final/final/Data/F-F_Research_Data_Factors_daily.csv")
+#Calculating Retruns
+abbv.close=abbv$Adj.Close
+abbv.ret=abbv.close[-1]/abbv.close[-754]-1
+#Filtering data from FAMA FRENCH 28-04-2021 to 29-02-2024
+# install.packages("anytime")
+library("anytime")
+DATE2=anydate(ff$DATE)
+mrp=ff$Mkt.RF
+rf=ff$RF
+ff0=as.data.frame(cbind(DATE2,mrp,rf))
+ff0$DATE2=as.Date(ff0$DATE2)
+ff2=ff0[c(24976:25690),]
+#Since rf amd mrp are in percentage, I will convert it to decimals.
+ff2$mrp=ff2$mrp/100
+ff2$rf=ff2$rf/100
+#The ff2 data frame has the risk free rate and mkt.rf=market portfolio-risk free rate from 28-04-2021 to 29-02-2024
+#Building a Combined Dataframe with asset return, risk free rate and market returns.
+Date=abbv$Date
+Date=Date[-1]
+df=as.data.frame(cbind(Date,abbv.ret))
+df2=df[c(1:715),]
+capm.df=as.data.frame(cbind(df2,ff2$mrp, ff2$rf))
+colnames(capm.df)=c("DATE","ABBOT.RT","MKT.RF","RF")
+capm.df$DATE=as.Date(capm.df$DATE)
+capm.df$ABBOT.RT=as.numeric(capm.df$ABBOT.RT)
+capm.df$MKT.RF=as.numeric(capm.df$MKT)
+capm.df$RF=as.numeric(capm.df$RF)
+# head(capm.df)
+# tail(capm.df)
+```
+
+#### (a) By testing whether the intercept is zero or not, does ABBV satisfy the capital asset pricing model (CAPM) or not? (do the test at the 5% level).
+
+The CAPM model takes the form of (𝜇j-𝜇f)=𝛽(𝜇mp-𝜇f). The model uses only one asset. 𝜇 refers to the expected return. (𝜇j-𝜇f) is the excess return which is the difference between the asset return Rt( Abbot returns) and 𝜇f represents the expected return from the risk free asset. 𝜇mp is the expected return from the market portfolio. 𝛽 captures the risk associated with the asset. The CAPM model can be re-written as a linear regression equation. Rj-𝜇f=𝛼j+𝛽(Rmp-𝜇f)+𝝐j. The fama french data already calculates the difference between the market portfolio and risk free rate.
+
+To determine whether or not, alpha fits the CAPM model, 1. the 𝛼j or intercept must be zero, since the model does not have an intercept. 2. Rmp and𝝐j must be independent
+
+```{r}
+#Calculating Excess return
+capm.df$excess=capm.df$ABBOT.RT-capm.df$RF
+#Regressing the excess return on the market return
+capm.lm=lm(capm.df, formula=excess~MKT.RF)
+summary(capm.lm)
+```
+
+H0:𝛼j=0 [CAPM holds]
+
+H1:𝛼j≉0 [CAPM does not hold]
+
+Focusing on the intercept. The estimated coefficient is 0.0007154 which is the alpha. The corresponding p value is about 11.90%. Since the p value is greater than 5%, we fail to reject the null. The Abbot returns satisfies the CAPM model at the five percent level. Since the alpha is positive, it would lie above the SML line. This could mean that the asset is under-priced. The actual return could possibly be more than the expected return. It also mean that the demand for the asset is going to grow over time, which would push the price of the asset upward and bring the asset back to the SML line.
+
+The R square is quiet small at about 6.83%. This means that the market portfolio only explains some of the variations in the model. There are other idiosyncratic variations affecting the excess returns. The R square justifies including other parameters in the model. Because the CAPM model is the true model, there should not be an alpha.
+
+```{r}
+#Excluding the intercept.
+capm.lm2=lm(capm.df, formula=excess~MKT.RF+0)
+summary(capm.lm2)
+```
+
+#### (c) Use the output to construct a 95% confidence interval for β in the CAPM model. State one of the main assumptions about the data when using the Std.Error of the coefficient estimators in the lm output to calculate the confidence interval.
+
+A common assumption about the data is that is iid.
+```{r}
+#Constructing a 95% confidence interval for beta
+CI=confint(capm.lm)
+CI[2,]
+beta=summary(capm.lm)$coefficients[2,1]
+se=summary(capm.lm)$coefficients[2,2]
+lower=beta-1.96*se
+lower
+upper=beta+1.96*se
+upper
+
+```
+#### (d)Make a scatter plot of ABBV minus the risk free asset against the Market Portfolio minus the market porfolio. Include in the scatter plot the best fitting lines both with without the intercept. Describe how the two lines relate to each other.
+```{r}
+#ABBV minus the risk free asset
+x=capm.df$ABBOT.RT-capm.df$RF
+#Market Portfolio minus the market porfolio
+y=capm.df$MKT.RF
+plot(x,y,main="Security Market Line for ABBOT", xlab="Excess Return on Market Portfolio", ylab="Excess Return on Abbot Returns")
+abline(capm.lm, col="red", lty=3)
+abline(capm.lm2, col="blue", lty=3)
+legend("topleft",legend=c("With intercept", "SML (no intercept)"),
+       fill = c("red","blue") )
+```
+The plot represents the Security Market lines along with the scatter plot of the excess returns. The x axis represents the excess returns on the market portfolio while the y axis shows the excess returns on Abbot.The red line is the fitted model with the intercept. Since alpha is positive it lies above the blue line (fitted regression without intercept.)The evidence from the r square and plot suggest that the excess market portfolio returns does not explain the variation in the ABBOT returns. 
